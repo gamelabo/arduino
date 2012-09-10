@@ -2,7 +2,8 @@
 #include <SPI.h>
 #include <Ethernet.h>
 
-byte mac[] = {};
+byte mac[] = { 
+  0x90, 0xA2, 0xDA, 0x0D, 0x29, 0x4A};
 
 EthernetClient client;
 
@@ -25,8 +26,7 @@ boolean hasError = false;
 boolean statusUnknown = false;
 
 unsigned long lastBlinkTime = 0;
-const int blinkNgInterval = 75;
-const int lightOkInterval = 1000;
+const int ngBlinkInterval = 100;
 
 void setup() {
   Serial.begin(9600);
@@ -38,7 +38,6 @@ void setup() {
 }
 
 void loop() {
-
   if(lastConnected){
     if(client.connected()){
       if (client.available()) {
@@ -55,27 +54,16 @@ void loop() {
           carriageReturn = true;
         }
         else if( c == '\n' && carriageReturn) {
-          if(inFirstLine){
-            inFirstLine = false;
-            if( firstLine.indexOf("HTTP/1.1 200 OK") < 0){
-              Serial.println("not 200");
-              client.stop();
-
-              resetFlags();
-
-              statusUnknown = true;
-            }
-            else {
-              Serial.println("200 OK");
-            }
-          }
-
           if(lineBreak){
             inHttpBody = true;
           }
 
           lineBreak = true;
           carriageReturn = false;
+
+          if(inFirstLine){
+            firstLineCheck();
+          }
         }
         else {
           lineBreak = false;
@@ -83,49 +71,11 @@ void loop() {
       }
     }
     else {
-
-      Serial.println();
-      Serial.println("disconnecting.");
-      client.stop();
-
-      Serial.println();
-      Serial.println(httpBody);
-
-      if(httpBody.indexOf("red") >= 0){
-        hasError = true;
-      }
-
-      resetFlags();
+      finishing();
     }
   }
   else{
-    if(hasError){
-      if (millis() -  lastBlinkTime > blinkNgInterval) {
-        flowLed();
-        lastBlinkTime = millis();
-      }
-    }
-    else if(statusUnknown){
-      if (millis() -  lastConnectionTime < lightOkInterval) {
-        if(!digitalRead(5)){
-          digitalWrite(5, HIGH);
-        }
-      }
-      else if(digitalRead(5)) {
-        digitalWrite(5, LOW);
-      }
-    }
-    else
-    {
-      if (millis() -  lastConnectionTime < lightOkInterval) {
-        if(!digitalRead(3)){
-          digitalWrite(3, HIGH);
-        }
-      }
-      else if(digitalRead(3)) {
-        digitalWrite(3, LOW);
-      }
-    }
+    lighting();
   }
 
   if(!client.connected() && (millis() - lastConnectionTime > postingInterval)) {
@@ -133,16 +83,12 @@ void loop() {
   }
 }
 
-// this method makes a HTTP connection to the server:
 void httpRequest() {
   hasError = false;
   statusUnknown = false;
   allLedOff();
 
-  // if there's a successful connection:
   if (client.connect(server, 80)) {
-    Serial.println("connecting...");
-    // send the HTTP PUT request:
     client.print("GET ");
     client.print(requestPage);
     client.println(" HTTP/1.1");
@@ -151,32 +97,31 @@ void httpRequest() {
     client.println("Connection: close");
     client.println();
 
-    // note the time that the connection was made:
-    Serial.println("connection saccsess");
     lastConnectionTime = millis();
     lastConnected = true;
-
-    Serial.println();
   } 
   else {
-    // if you couldn't make a connection:
-    Serial.println("connection failed");
-    Serial.println("disconnecting.");
-    Serial.println();
     client.stop();
     statusUnknown = true;
-
     lastConnectionTime = millis();
   }
 }
 
-void initializePinMode() {
-  pinMode(3, OUTPUT);
-  pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
-  pinMode(7, OUTPUT);
-  pinMode(8, OUTPUT);
-  pinMode(9, OUTPUT);
+void firstLineCheck() {
+  inFirstLine = false;
+  if( firstLine.indexOf("HTTP/1.1 200 OK") < 0){
+    client.stop();
+    resetFlags();
+    statusUnknown = true;
+  }
+}
+
+void finishing(){
+  client.stop();
+  if(httpBody.indexOf("red") >= 0){
+    hasError = true;
+  }
+  resetFlags(); 
 }
 
 void resetFlags() {
@@ -189,6 +134,35 @@ void resetFlags() {
   inFirstLine = true;
 }
 
+void lighting() {
+  if(hasError){
+    if (millis() -  lastBlinkTime > ngBlinkInterval) {
+      flowLed();
+      lastBlinkTime = millis();
+    }
+  }
+  else if(statusUnknown){
+    if(!digitalRead(3)){
+      digitalWrite(3, HIGH);
+    }
+  }
+  else
+  {
+    if(!digitalRead(2)){
+      digitalWrite(2, HIGH);
+    }
+  }
+}
+
+void initializePinMode() {
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
+  pinMode(5, OUTPUT);
+  pinMode(6, OUTPUT);
+  pinMode(7, OUTPUT);
+  pinMode(8, OUTPUT);
+  pinMode(9, OUTPUT);
+}
 
 void flowLed() {
   if(digitalRead(5)) {
@@ -213,34 +187,11 @@ void flowLed() {
 }
 
 void allLedOff() {
+  digitalWrite(2, LOW);
   digitalWrite(3, LOW);
   digitalWrite(5, LOW);
   digitalWrite(6, LOW);
   digitalWrite(7, LOW);
   digitalWrite(8, LOW);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
