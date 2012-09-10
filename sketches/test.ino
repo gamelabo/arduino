@@ -1,3 +1,4 @@
+
 #include <SPI.h>
 #include <Ethernet.h>
 
@@ -5,26 +6,27 @@ byte mac[] = {};
 
 EthernetClient client;
 
-
 const char server[] = "192.168.0.2";
-
 const char requestPage[] = "/test.txt";
-const char errorCheckWord[] = "red";
+//const char errorCheckWord[] = "red";
 
-
-
-unsigned long lastConnectionTime = 0;          // last time you connected to the server, in milliseconds
-//boolean lastConnected = false;                 // state of the connection last time through the main loop
-const unsigned long postingInterval = 10*1000;  // delay between updates, in milliseconds
-
+unsigned long lastConnectionTime = 0;
 boolean lastConnected = false;
+const unsigned long postingInterval = 10*1000;
 
 boolean carriageReturn = false;
+boolean inFirstLine = true;
+String firstLine = "";
 boolean lineBreak = false;
 boolean inHttpBody = false;
-String firstLine = "";
 String httpBody = "";
-boolean inFirstLine = true;
+
+boolean hasError = false;
+boolean statusUnknown = false;
+
+unsigned long lastBlinkTime = 0;
+const int blinkNgInterval = 75;
+const int lightOkInterval = 1000;
 
 void setup() {
   Serial.begin(9600);
@@ -56,9 +58,12 @@ void loop() {
           if(inFirstLine){
             inFirstLine = false;
             if( firstLine.indexOf("HTTP/1.1 200 OK") < 0){
-              client.stop();
-              lastConnected = false;
               Serial.println("not 200");
+              client.stop();
+
+              resetFlags();
+
+              statusUnknown = true;
             }
             else {
               Serial.println("200 OK");
@@ -82,30 +87,58 @@ void loop() {
       Serial.println();
       Serial.println("disconnecting.");
       client.stop();
-      lastConnected = false;
 
       Serial.println();
-      Serial.println(httpBody.length());
       Serial.println(httpBody);
 
-      carriageReturn = false;
-      lineBreak = false;
-      inHttpBody = false;
-      firstLine = "";
-      httpBody = "";
-      inFirstLine = true;
+      if(httpBody.indexOf("red") >= 0){
+        hasError = true;
+      }
 
+      resetFlags();
+    }
+  }
+  else{
+    if(hasError){
+      if (millis() -  lastBlinkTime > blinkNgInterval) {
+        flowLed();
+        lastBlinkTime = millis();
+      }
+    }
+    else if(statusUnknown){
+      if (millis() -  lastConnectionTime < lightOkInterval) {
+        if(!digitalRead(5)){
+          digitalWrite(5, HIGH);
+        }
+      }
+      else if(digitalRead(5)) {
+        digitalWrite(5, LOW);
+      }
+    }
+    else
+    {
+      if (millis() -  lastConnectionTime < lightOkInterval) {
+        if(!digitalRead(3)){
+          digitalWrite(3, HIGH);
+        }
+      }
+      else if(digitalRead(3)) {
+        digitalWrite(3, LOW);
+      }
     }
   }
 
   if(!client.connected() && (millis() - lastConnectionTime > postingInterval)) {
     httpRequest();
   }
-
 }
 
 // this method makes a HTTP connection to the server:
 void httpRequest() {
+  hasError = false;
+  statusUnknown = false;
+  allLedOff();
+
   // if there's a successful connection:
   if (client.connect(server, 80)) {
     Serial.println("connecting...");
@@ -129,7 +162,11 @@ void httpRequest() {
     // if you couldn't make a connection:
     Serial.println("connection failed");
     Serial.println("disconnecting.");
+    Serial.println();
     client.stop();
+    statusUnknown = true;
+
+    lastConnectionTime = millis();
   }
 }
 
@@ -141,6 +178,59 @@ void initializePinMode() {
   pinMode(8, OUTPUT);
   pinMode(9, OUTPUT);
 }
+
+void resetFlags() {
+  lastConnected = false;
+  carriageReturn = false;
+  lineBreak = false;
+  inHttpBody = false;
+  firstLine = "";
+  httpBody = "";
+  inFirstLine = true;
+}
+
+
+void flowLed() {
+  if(digitalRead(5)) {
+    digitalWrite(5, LOW);
+    digitalWrite(6, HIGH);
+  } 
+  else if(digitalRead(6)) {
+    digitalWrite(6, LOW);
+    digitalWrite(7, HIGH);
+  }    
+  else if(digitalRead(7)) {   
+    digitalWrite(7, LOW);
+    digitalWrite(8, HIGH);
+  }    
+  else if(digitalRead(8)) {
+    digitalWrite(8, LOW);
+    digitalWrite(5, HIGH);
+  }    
+  else {
+    digitalWrite(5, HIGH);
+  }
+}
+
+void allLedOff() {
+  digitalWrite(3, LOW);
+  digitalWrite(5, LOW);
+  digitalWrite(6, LOW);
+  digitalWrite(7, LOW);
+  digitalWrite(8, LOW);
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
