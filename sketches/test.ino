@@ -1,18 +1,16 @@
-
 #include <SPI.h>
 #include <Ethernet.h>
 
-byte mac[] = { 
-  0x90, 0xA2, 0xDA, 0x0D, 0x29, 0x4A};
+byte mac[] = {};
 
 EthernetClient client;
 
-//const char server[] = "176.32.95.234";
+
 const char server[] = "192.168.0.2";
-//const char requestPage[] = "/jenkins/api/json?tree=jobs%5Bcolor%5D";
+
 const char requestPage[] = "/test.txt";
 const char errorCheckWord[] = "red";
-const char outhKey[] = "ZnVrYW1pX3Nob3VpY2hpcm86ZnVrYW1pX3Nob3VpY2hpcm8=";
+
 
 
 unsigned long lastConnectionTime = 0;          // last time you connected to the server, in milliseconds
